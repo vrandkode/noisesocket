@@ -2,6 +2,8 @@ package noisesocket
 
 import (
 	"encoding/binary"
+	"encoding/hex"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -192,13 +194,10 @@ func (c *Conn) writePacketLocked(data []byte) (int, error) {
 			m = int(maxPayloadSize)
 		}
 		if c.out.cs != nil {
-			////fmt.Println("writing encrypted packet:", m)
 			packet.reserve(uint16Size + uint16Size + m + macSize)
 			packet.resize(uint16Size + uint16Size + m)
 			copy(packet.data[uint16Size+uint16Size:], data[:m])
 			binary.BigEndian.PutUint16(packet.data[uint16Size:], uint16(m))
-			//fmt.Println("encrypt size", uint16(m))
-
 		} else {
 			packet.resize(len(packet.data) + len(data))
 			copy(packet.data[uint16Size:len(packet.data)], data[:m])
@@ -207,7 +206,7 @@ func (c *Conn) writePacketLocked(data []byte) (int, error) {
 
 		b := c.out.encryptIfNeeded(packet)
 		c.out.freeBlock(packet)
-		////fmt.Println(hex.EncodeToString(b))
+		fmt.Println("[output] Writing  ", len(b), " bytes, message:", hex.EncodeToString(b), b)
 
 		if _, err := c.conn.Write(b); err != nil {
 			return n, err
@@ -243,7 +242,6 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 	c.in.Lock()
 	defer c.in.Unlock()
 
-	//fmt.Println("Packet read request")
 	if c.rawInput != nil {
 		//fmt.Println("raw 7:", hex.EncodeToString(c.rawInput.data))
 	}
@@ -454,6 +452,7 @@ func (c *Conn) Handshake() error {
 
 func (c *Conn) RunClientHandshake() error {
 
+	fmt.Println("[client] Initiator initialises the handshake phase!")
 	var (
 		negData, msg []byte
 		state        *noise.HandshakeState
@@ -464,12 +463,15 @@ func (c *Conn) RunClientHandshake() error {
 	if negData, msg, state, err = ComposeInitiatorHandshakeMessage(c.config.StaticKey, nil, nil, nil); err != nil {
 		return err
 	}
+
 	if _, err = c.writePacket(negData); err != nil {
 		return err
 	}
 	if _, err = c.writePacket(msg); err != nil {
 		return err
 	}
+
+	fmt.Println("[client] --> negotiation_data:", negData, " , noise_message:", msg, string(msg))
 
 	//read negotiation data
 	if err := c.readPacket(); err != nil {
@@ -484,6 +486,8 @@ func (c *Conn) RunClientHandshake() error {
 	}
 
 	msg = c.hand.Next(c.hand.Len())
+
+	fmt.Println("[client] <-- negotiation_data:", negotiationData, " , noise_message:", msg)
 
 	if len(negotiationData) != 0 || len(msg) == 0 {
 		return errors.New("Server returned error")
@@ -508,12 +512,10 @@ func (c *Conn) RunClientHandshake() error {
 	if csIn == nil && csOut == nil {
 		b := c.out.newBlock()
 
-		if b.data, csIn, csOut, err = state.WriteMessage(b.data, pad(c.config.Payload)); err != nil{
+		if b.data, csIn, csOut, err = state.WriteMessage(b.data, pad(c.config.Payload)); err != nil {
 			c.out.freeBlock(b)
 			return err
 		}
-
-
 
 		if _, err = c.writePacket(nil); err != nil {
 			c.out.freeBlock(b)
@@ -568,7 +570,7 @@ func (c *Conn) RunServerHandshake() error {
 
 	b := c.out.newBlock()
 
-	if b.data, csOut, csIn, err = hs.WriteMessage(b.data, pad(c.config.Payload)); err != nil{
+	if b.data, csOut, csIn, err = hs.WriteMessage(b.data, pad(c.config.Payload)); err != nil {
 		c.out.freeBlock(b)
 		return err
 	}

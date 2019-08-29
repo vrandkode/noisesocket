@@ -2,6 +2,7 @@ package noisesocket
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"sync"
 
 	"math"
@@ -59,6 +60,8 @@ func (h *halfConn) decryptIfNeeded(b *buffer) (off, length int, err error) {
 
 	payload := b.data[uint16Size:]
 
+	fmt.Println("[input] Reading  ", len(payload), " bytes, message:", hex.EncodeToString(payload), payload)
+
 	packetLen := binary.BigEndian.Uint16(b.data)
 	if int(packetLen) != len(payload) { //this is supposed to be checked before method call
 		panic("invalid payload size")
@@ -74,7 +77,7 @@ func (h *halfConn) decryptIfNeeded(b *buffer) (off, length int, err error) {
 		}
 
 		dataLen := binary.BigEndian.Uint16(payload)
-		//fmt.Println("decrypt len", dataLen)
+		fmt.Println("        decrypted  ", len(payload), " bytes, message:", hex.EncodeToString(payload), payload)
 
 		if dataLen > (uint16(len(payload))) {
 			return 0, 0, errors.New(fmt.Sprintf("invalid packet data: %d %d", dataLen, len(payload)))

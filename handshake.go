@@ -29,6 +29,7 @@ func init() {
 // ComposeInitiatorHandshakeMessage generates handshakeState and the first noise message.
 func ComposeInitiatorHandshakeMessage(s noise.DHKey, rs []byte, payload []byte, ePrivate []byte) (negData, msg []byte, state *noise.HandshakeState, err error) {
 
+	fmt.Println("[initiator] ComposeInitiatorHandshakeMessage")
 	if len(rs) != 0 && len(rs) != noise.DH25519.DHLen() {
 		return nil, nil, nil, errors.New("only 32 byte curve25519 public keys are supported")
 	}
@@ -45,6 +46,10 @@ func ComposeInitiatorHandshakeMessage(s noise.DHKey, rs []byte, payload []byte, 
 		pattern = noise.HandshakeIK
 		negData[5] = NOISE_PATTERN_IK
 	}
+
+	fmt.Println("[initiator] HANDSHAKE with payload", payload)
+	fmt.Println("[initiator]    ...... Init ", initString)
+	fmt.Println("[initiator]    ...... Pattern (9:XX,15:XK)", negData[5])
 
 	var random io.Reader
 	if len(ePrivate) == 0 {
@@ -67,13 +72,16 @@ func ComposeInitiatorHandshakeMessage(s noise.DHKey, rs []byte, payload []byte, 
 		Random:        random,
 	})
 
-	if err != nil{
+	if err != nil {
 		return
 	}
 
-	padBuf := make([]byte, 2+ len(payload))
+	fmt.Println("[initiator]    ...... suite: DH25519, CipherAESGCM, HashBLAKE2b")
+
+	padBuf := make([]byte, 2+len(payload))
 	copy(padBuf[2:], payload)
 
+	fmt.Println("[initiator]    ...... writing: ", msg, string(msg), "len:", len(msg), ", padding: ", padBuf, ", str:", string(padBuf), " len:", len(padBuf))
 	msg, _, _, err = state.WriteMessage(msg, padBuf)
 
 	return
@@ -81,6 +89,7 @@ func ComposeInitiatorHandshakeMessage(s noise.DHKey, rs []byte, payload []byte, 
 
 func ParseNegotiationData(data []byte, s noise.DHKey) (state *noise.HandshakeState, err error) {
 
+	fmt.Println("[.........] ParseNegotiationData")
 	if len(data) != 6 {
 		return nil, errors.New("Invalid negotiation data length")
 	}
@@ -125,5 +134,6 @@ func ParseNegotiationData(data []byte, s noise.DHKey) (state *noise.HandshakeSta
 		CipherSuite:   noise.NewCipherSuite(noise.DH25519, cipher, hash),
 		Prologue:      prologue,
 	})
+	fmt.Println(pattern)
 	return
 }
